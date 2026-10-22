@@ -12,6 +12,7 @@ import model
 import Myloss
 import numpy as np
 from torchvision import transforms
+import random
 
 
 def weights_init(m):
@@ -27,14 +28,23 @@ def weights_init(m):
 
 
 def train(config):
+	random.seed(config.seed)
+	np.random.seed(config.seed)
+	torch.manual_seed(config.seed)
+	torch.cuda.manual_seed_all(config.seed)
+
+	torch.backends.cudnn.deterministic = True
+	torch.backends.cudnn.benchmark = False
+
+	print(f"Using seed: {config.seed}")
 
 	os.environ['CUDA_VISIBLE_DEVICES']='0'
 	scale_factor = config.scale_factor
 	DCE_net = model.enhance_net_nopool(scale_factor).cuda()
 
 	# DCE_net.apply(weights_init)
-	if config.load_pretrain == True:
-	    DCE_net.load_state_dict(torch.load(config.pretrain_dir))
+	if config.load_pretrain == True: 
+		DCE_net.load_state_dict(torch.load(config.pretrain_dir))
 	train_dataset = dataloader.lowlight_loader(config.lowlight_images_path)		
 	
 	train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=config.train_batch_size, shuffle=True, num_workers=config.num_workers, pin_memory=True)
@@ -75,7 +85,7 @@ def train(config):
 			
 			optimizer.zero_grad()
 			loss.backward()
-			torch.nn.utils.clip_grad_norm(DCE_net.parameters(),config.grad_clip_norm)
+			torch.nn.utils.clip_grad_norm_(DCE_net.parameters(),config.grad_clip_norm)
 			optimizer.step()
 
 			if ((iteration+1) % config.display_iter) == 0:
@@ -93,6 +103,7 @@ if __name__ == "__main__":
 
 	# Input Parameters
 	parser.add_argument('--lowlight_images_path', type=str, default="data/train_data/")
+	parser.add_argument('--seed', type=int, default=42)
 	parser.add_argument('--lr', type=float, default=0.0001)
 	parser.add_argument('--weight_decay', type=float, default=0.0001)
 	parser.add_argument('--grad_clip_norm', type=float, default=0.1)
